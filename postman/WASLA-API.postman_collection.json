@@ -1,0 +1,140 @@
+{
+  "info": {
+    "_postman_id": "68d98f6d-0f82-4f39-a254-b606432ff3ba",
+    "name": "WASLA Backend API",
+    "description": "Complete WASLA API collection. Select the WASLA Local environment, run the authentication requests for the required role, and keep all secrets in environment variables.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "event": [
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "pm.test('Response is not a server error', function () { pm.expect(pm.response.code).to.be.below(500); });",
+          "pm.test('Response time is acceptable', function () { pm.expect(pm.response.responseTime).to.be.below(5000); });",
+          "if (!pm.request.url.toString().includes('/download') && !pm.request.url.toString().includes('/export') && !pm.request.url.toString().includes('/generate-cv')) {",
+          "  pm.test('Response is JSON', function () { pm.expect(pm.response.headers.get('Content-Type') || '').to.include('application/json'); });",
+          "}"
+        ]
+      }
+    }
+  ],
+  "variable": [
+    {"key": "base_url", "value": "http://localhost:8000/api"}
+  ],
+  "item": [
+    {
+      "name": "Public",
+      "item": [
+        {"name":"Health","request":{"method":"GET","url":"{{base_url}}/health"}},
+        {"name":"List Public Jobs","request":{"method":"GET","url":"{{base_url}}/jobs?q=Laravel&city=&job_type=&employment_type=&salary_min="}},
+        {"name":"Show Public Job","request":{"method":"GET","url":"{{base_url}}/jobs/{{job_id}}"}}
+      ]
+    },
+    {
+      "name": "Authentication",
+      "item": [
+        {
+          "name":"Register Seeker",
+          "request":{"method":"POST","header":[{"key":"Content-Type","value":"application/json"}],"body":{"mode":"raw","raw":"{\n  \"name\": \"Postman Seeker\",\n  \"email\": \"{{seeker_email}}\",\n  \"password\": \"{{password}}\",\n  \"role\": \"seeker\"\n}"},"url":"{{base_url}}/auth/register"},
+          "event":[{"listen":"test","script":{"exec":["pm.test('Registration accepted or already exists', () => pm.expect(pm.response.code).to.be.oneOf([201, 422]));"]}}]
+        },
+        {
+          "name":"Register Employer",
+          "request":{"method":"POST","header":[{"key":"Content-Type","value":"application/json"}],"body":{"mode":"raw","raw":"{\n  \"name\": \"Postman Employer\",\n  \"email\": \"{{employer_email}}\",\n  \"password\": \"{{password}}\",\n  \"role\": \"employer\"\n}"},"url":"{{base_url}}/auth/register"}
+        },
+        {"name":"Verify OTP","request":{"method":"POST","header":[{"key":"Content-Type","value":"application/json"}],"body":{"mode":"raw","raw":"{\n  \"email\": \"{{verification_email}}\",\n  \"otp\": \"{{otp}}\"\n}"},"url":"{{base_url}}/auth/verify-otp"}},
+        {"name":"Resend OTP","request":{"method":"POST","header":[{"key":"Content-Type","value":"application/json"}],"body":{"mode":"raw","raw":"{\n  \"email\": \"{{verification_email}}\"\n}"},"url":"{{base_url}}/auth/resend-otp"}},
+        {
+          "name":"Login Seeker",
+          "request":{"method":"POST","header":[{"key":"Content-Type","value":"application/json"}],"body":{"mode":"raw","raw":"{\n  \"email\": \"{{seeker_email}}\",\n  \"password\": \"{{password}}\"\n}"},"url":"{{base_url}}/auth/login"},
+          "event":[{"listen":"test","script":{"exec":["pm.test('Login succeeds', () => pm.response.to.have.status(200));","const body = pm.response.json();","if (body.token) pm.environment.set('seeker_token', body.token);"]}}]
+        },
+        {
+          "name":"Login Employer",
+          "request":{"method":"POST","header":[{"key":"Content-Type","value":"application/json"}],"body":{"mode":"raw","raw":"{\n  \"email\": \"{{employer_email}}\",\n  \"password\": \"{{password}}\"\n}"},"url":"{{base_url}}/auth/login"},
+          "event":[{"listen":"test","script":{"exec":["pm.test('Login succeeds', () => pm.response.to.have.status(200));","const body = pm.response.json();","if (body.token) pm.environment.set('employer_token', body.token);"]}}]
+        },
+        {
+          "name":"Login Admin",
+          "request":{"method":"POST","header":[{"key":"Content-Type","value":"application/json"}],"body":{"mode":"raw","raw":"{\n  \"email\": \"{{admin_email}}\",\n  \"password\": \"{{password}}\"\n}"},"url":"{{base_url}}/auth/login"},
+          "event":[{"listen":"test","script":{"exec":["pm.test('Login succeeds', () => pm.response.to.have.status(200));","const body = pm.response.json();","if (body.token) pm.environment.set('admin_token', body.token);"]}}]
+        },
+        {"name":"Forgot Password","request":{"method":"POST","header":[{"key":"Content-Type","value":"application/json"}],"body":{"mode":"raw","raw":"{\n  \"email\": \"{{verification_email}}\"\n}"},"url":"{{base_url}}/auth/forgot-password"}},
+        {"name":"Reset Password","request":{"method":"POST","header":[{"key":"Content-Type","value":"application/json"}],"body":{"mode":"raw","raw":"{\n  \"email\": \"{{verification_email}}\",\n  \"token\": \"{{reset_token}}\",\n  \"password\": \"{{new_password}}\",\n  \"password_confirmation\": \"{{new_password}}\"\n}"},"url":"{{base_url}}/auth/reset-password"}}
+      ]
+    },
+    {
+      "name":"Authenticated Common",
+      "auth":{"type":"bearer","bearer":[{"key":"token","value":"{{seeker_token}}","type":"string"}]},
+      "item":[
+        {"name":"Current User","request":{"method":"GET","url":"{{base_url}}/user"}},
+        {"name":"Notifications","request":{"method":"GET","url":"{{base_url}}/notifications"}},
+        {"name":"Mark Notification Read","request":{"method":"PATCH","url":"{{base_url}}/notifications/{{notification_id}}/read"}},
+        {"name":"Create Abuse Report","request":{"method":"POST","header":[{"key":"Content-Type","value":"application/json"}],"body":{"mode":"raw","raw":"{\n  \"job_post_id\": {{job_id}},\n  \"reason\": \"Misleading content\",\n  \"details\": \"Created from the Postman API collection.\"\n}"},"url":"{{base_url}}/reports"}},
+        {"name":"Change Password","request":{"method":"PUT","header":[{"key":"Content-Type","value":"application/json"}],"body":{"mode":"raw","raw":"{\n  \"current_password\": \"{{password}}\",\n  \"password\": \"{{new_password}}\",\n  \"password_confirmation\": \"{{new_password}}\"\n}"},"url":"{{base_url}}/auth/password"}},
+        {"name":"Logout Current Device","request":{"method":"POST","url":"{{base_url}}/auth/logout"}},
+        {"name":"Logout All Devices","request":{"method":"POST","url":"{{base_url}}/auth/logout-all"}}
+      ]
+    },
+    {
+      "name":"Seeker",
+      "auth":{"type":"bearer","bearer":[{"key":"token","value":"{{seeker_token}}","type":"string"}]},
+      "item":[
+        {"name":"Get Profile","request":{"method":"GET","url":"{{base_url}}/seeker/profile"}},
+        {"name":"ATS Profile Analysis","request":{"method":"GET","url":"{{base_url}}/seeker/profile/ats-analysis"},"event":[{"listen":"test","script":{"exec":["pm.test('ATS analysis succeeds', () => pm.response.to.have.status(200));","const body = pm.response.json();","pm.test('ATS score is between 0 and 100', () => pm.expect(body.data.score).to.be.within(0, 100));","pm.test('ATS method is declared', () => pm.expect(body.data.method).to.eql('rule_based_ats_v1'));"]}}]},
+        {"name":"Update Basic Info","request":{"method":"PUT","header":[{"key":"Content-Type","value":"application/json"}],"body":{"mode":"raw","raw":"{\n  \"first_name\": \"Postman\",\n  \"last_name\": \"Seeker\",\n  \"country\": \"Saudi Arabia\",\n  \"city\": \"Riyadh\",\n  \"job_title_ar\": \"مطور برمجيات\",\n  \"job_title_en\": \"Software Developer\"\n}"},"url":"{{base_url}}/seeker/profile/section/basic-info"}},
+        {"name":"Update Skills","request":{"method":"PUT","header":[{"key":"Content-Type","value":"application/json"}],"body":{"mode":"raw","raw":"{\n  \"skills\": [\"PHP\", \"Laravel\", \"MySQL\"]\n}"},"url":"{{base_url}}/seeker/profile/section/skills"}},
+        {"name":"Update Experience","request":{"method":"PUT","header":[{"key":"Content-Type","value":"application/json"}],"body":{"mode":"raw","raw":"{\n  \"experience\": [{\"title\": \"Backend Developer\", \"company\": \"WASLA\", \"years\": 3}]\n}"},"url":"{{base_url}}/seeker/profile/section/experience"}},
+        {"name":"Update Education","request":{"method":"PUT","header":[{"key":"Content-Type","value":"application/json"}],"body":{"mode":"raw","raw":"{\n  \"education\": [{\"degree\": \"Computer Science\", \"institution\": \"University\", \"year\": 2024}]\n}"},"url":"{{base_url}}/seeker/profile/section/education"}},
+        {"name":"Update Languages","request":{"method":"PUT","header":[{"key":"Content-Type","value":"application/json"}],"body":{"mode":"raw","raw":"{\n  \"languages\": [\"Arabic\", \"English\"]\n}"},"url":"{{base_url}}/seeker/profile/section/languages"}},
+        {"name":"Update Preferences","request":{"method":"PUT","header":[{"key":"Content-Type","value":"application/json"}],"body":{"mode":"raw","raw":"{\n  \"preferences\": {\"city\": \"Riyadh\", \"job_title\": \"Developer\", \"min_salary\": 5000, \"alerts\": true, \"job_type\": \"remote\"}\n}"},"url":"{{base_url}}/seeker/profile/section/preferences"}},
+        {"name":"Update Privacy","request":{"method":"PUT","header":[{"key":"Content-Type","value":"application/json"}],"body":{"mode":"raw","raw":"{\n  \"is_public\": true,\n  \"show_contact\": true\n}"},"url":"{{base_url}}/seeker/profile/section/privacy"}},
+        {"name":"Parse CV","request":{"method":"POST","body":{"mode":"formdata","formdata":[{"key":"cv_file","type":"file","src":[]}]},"url":"{{base_url}}/seeker/profile/parse-cv"}},
+        {"name":"Upload CV","request":{"method":"POST","body":{"mode":"formdata","formdata":[{"key":"cv_file","type":"file","src":[]}]},"url":"{{base_url}}/seeker/profile/upload-cv"}},
+        {"name":"Download CV","request":{"method":"GET","url":"{{base_url}}/seeker/profile/download-cv"}},
+        {"name":"Generate CV PDF","request":{"method":"GET","url":"{{base_url}}/seeker/profile/generate-cv"}},
+        {"name":"Recommendations","request":{"method":"GET","url":"{{base_url}}/seeker/recommendations"}},
+        {"name":"Evaluate Job Match","request":{"method":"GET","url":"{{base_url}}/seeker/jobs/{{job_id}}/match"}},
+        {"name":"Apply to Job","request":{"method":"POST","url":"{{base_url}}/seeker/jobs/{{job_id}}/apply"},"event":[{"listen":"test","script":{"exec":["if (pm.response.code === 201) { const body = pm.response.json(); if (body.data && body.data.id) pm.environment.set('application_id', body.data.id); }"]}}]},
+        {"name":"My Applications","request":{"method":"GET","url":"{{base_url}}/seeker/applications"}},
+        {"name":"Withdraw Application","request":{"method":"PATCH","url":"{{base_url}}/seeker/applications/{{application_id}}/withdraw"}}
+      ]
+    },
+    {
+      "name":"Employer",
+      "auth":{"type":"bearer","bearer":[{"key":"token","value":"{{employer_token}}","type":"string"}]},
+      "item":[
+        {"name":"Get Company","request":{"method":"GET","url":"{{base_url}}/employer/company"}},
+        {"name":"Create or Update Company","request":{"method":"PUT","header":[{"key":"Content-Type","value":"application/json"}],"body":{"mode":"raw","raw":"{\n  \"name\": \"Postman Company\",\n  \"industry\": \"Technology\",\n  \"city\": \"Riyadh\",\n  \"description\": \"A company created by the Postman collection.\",\n  \"website\": \"https://example.com\"\n}"},"url":"{{base_url}}/employer/company"},"event":[{"listen":"test","script":{"exec":["if (pm.response.code === 200) { const body = pm.response.json(); if (body.data && body.data.id) pm.environment.set('company_id', body.data.id); }"]}}]},
+        {"name":"Upload Company Document","request":{"method":"POST","body":{"mode":"formdata","formdata":[{"key":"document","type":"file","src":[]}]},"url":"{{base_url}}/employer/company/documents"},"event":[{"listen":"test","script":{"exec":["if (pm.response.code === 201) { const body = pm.response.json(); if (body.data && body.data.id) pm.environment.set('document_id', body.data.id); }"]}}]},
+        {"name":"Download Company Document","request":{"method":"GET","url":"{{base_url}}/employer/company/documents/{{document_id}}"}},
+        {"name":"Browse Candidates","request":{"method":"GET","url":"{{base_url}}/employer/candidates?skill=Laravel"}},
+        {"name":"My Jobs","request":{"method":"GET","url":"{{base_url}}/employer/jobs"}},
+        {"name":"Create Job","request":{"method":"POST","header":[{"key":"Content-Type","value":"application/json"}],"body":{"mode":"raw","raw":"{\n  \"title\": \"Laravel Backend Developer\",\n  \"description\": \"Build and maintain backend services.\",\n  \"city\": \"Riyadh\",\n  \"job_type\": \"hybrid\",\n  \"employment_type\": \"full_time\",\n  \"salary_min\": 5000,\n  \"salary_max\": 9000,\n  \"min_experience_years\": 2,\n  \"skills_required\": [\"PHP\", \"Laravel\"],\n  \"requirements\": [\"Strong API experience\"]\n}"},"url":"{{base_url}}/employer/jobs"},"event":[{"listen":"test","script":{"exec":["pm.test('Job created', () => pm.response.to.have.status(201));","const body = pm.response.json();","if (body.data && body.data.id) pm.environment.set('job_id', body.data.id);"]}}]},
+        {"name":"Update Job","request":{"method":"PUT","header":[{"key":"Content-Type","value":"application/json"}],"body":{"mode":"raw","raw":"{\n  \"title\": \"Senior Laravel Backend Developer\",\n  \"description\": \"Build and maintain secure backend services.\",\n  \"city\": \"Riyadh\",\n  \"job_type\": \"hybrid\",\n  \"employment_type\": \"full_time\",\n  \"salary_min\": 7000,\n  \"salary_max\": 11000,\n  \"min_experience_years\": 3,\n  \"skills_required\": [\"PHP\", \"Laravel\", \"MySQL\"],\n  \"requirements\": [\"Strong API experience\"]\n}"},"url":"{{base_url}}/employer/jobs/{{job_id}}"}},
+        {"name":"Publish Job","request":{"method":"POST","url":"{{base_url}}/employer/jobs/{{job_id}}/publish"}},
+        {"name":"Pause Job","request":{"method":"POST","url":"{{base_url}}/employer/jobs/{{job_id}}/pause"}},
+        {"name":"Close Job","request":{"method":"POST","url":"{{base_url}}/employer/jobs/{{job_id}}/close"}},
+        {"name":"Delete Draft Job","request":{"method":"DELETE","url":"{{base_url}}/employer/jobs/{{job_id}}"}},
+        {"name":"Job Applicants","request":{"method":"GET","url":"{{base_url}}/employer/jobs/{{job_id}}/applicants"}},
+        {"name":"Update Application Status","request":{"method":"PATCH","header":[{"key":"Content-Type","value":"application/json"}],"body":{"mode":"raw","raw":"{\n  \"status\": \"reviewing\",\n  \"note\": \"Profile reviewed in Postman.\"\n}"},"url":"{{base_url}}/employer/applications/{{application_id}}/status"}},
+        {"name":"Applicant Contact","request":{"method":"GET","url":"{{base_url}}/employer/applications/{{application_id}}/contact"}}
+      ]
+    },
+    {
+      "name":"Admin",
+      "auth":{"type":"bearer","bearer":[{"key":"token","value":"{{admin_token}}","type":"string"}]},
+      "item":[
+        {"name":"Companies","request":{"method":"GET","url":"{{base_url}}/admin/companies"}},
+        {"name":"Verify Company","request":{"method":"PATCH","header":[{"key":"Content-Type","value":"application/json"}],"body":{"mode":"raw","raw":"{\n  \"status\": \"verified\",\n  \"note\": \"Verification completed.\"\n}"},"url":"{{base_url}}/admin/companies/{{company_id}}/verify"}},
+        {"name":"Grant Publishing Quota","request":{"method":"POST","header":[{"key":"Content-Type","value":"application/json"}],"body":{"mode":"raw","raw":"{\n  \"amount\": 5\n}"},"url":"{{base_url}}/admin/companies/{{company_id}}/quota"}},
+        {"name":"Download Company Document","request":{"method":"GET","url":"{{base_url}}/admin/company-documents/{{document_id}}"}},
+        {"name":"Reports","request":{"method":"GET","url":"{{base_url}}/admin/reports"}},
+        {"name":"Review Report","request":{"method":"PATCH","header":[{"key":"Content-Type","value":"application/json"}],"body":{"mode":"raw","raw":"{\n  \"status\": \"resolved\",\n  \"admin_note\": \"Reviewed from Postman.\",\n  \"hide_job\": false\n}"},"url":"{{base_url}}/admin/reports/{{report_id}}"}},
+        {"name":"Export Applicants CSV","request":{"method":"GET","url":"{{base_url}}/admin/jobs/{{job_id}}/applicants/export"}}
+      ]
+    }
+  ]
+}
